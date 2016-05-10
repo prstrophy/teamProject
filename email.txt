@@ -1,0 +1,15 @@
+$subject = "Thank you for Registration";
+				$from = "noreply.smartshop.uk@gmail.com";
+				$to = "$email";
+				$text ="Activate account";
+				$html = "Hi $firstname $lastname, <br/>
+				Thank you for registering on smartshop 
+
+				Contact us if you have any question.
+
+				Thanks.
+				";
+
+				if (email($subject,$from,$to,$text,$html)) {
+					echo "string";
+				}

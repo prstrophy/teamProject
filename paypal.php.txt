@@ -1,0 +1,154 @@
+
+<?php
+session_start();
+
+include('connection.php');
+
+require 'function/PayPal-PHP-SDK/autoload.php';
+$datas = $_SESSION['cart'];
+$user_id =  $_SESSION['customer_id'];
+
+
+
+//var_dump($datas);
+
+
+if (!empty($_SESSION['slot']['date']) ||!empty($_SESSION['slot']['time'])) {
+	
+ //var_dump($_SESSION['slot']);
+ //die();
+
+
+}else{
+	header('location:addcart.php');
+}
+// // var_dump($datas);
+// // var_dump($_SESSION['slot']);
+// die();
+
+$apiContext = new \PayPal\Rest\ApiContext(
+	new \PayPal\Auth\OAuthTokenCredential(
+		'AbFHJj0OXr7Bch34-Dzte4dO6s_UK7sMrT5X1u6xRAgmTcM_jc9Y7pN7dVP1ykrLonntAD2o66BM4Hve',
+		'EL9zPU6aVXFinpmnMTAJy7l82d0iFTPiChn5PiJU2_GYZeiqSlYGI7rl1olrkgCkTNZEAspuwTLttPOE')
+	);
+
+if (isset($_GET['success']) && $_GET['success'] == 'true') {
+
+	$paymentId = $_GET['paymentId'];
+	$payment = \PayPal\Api\Payment::get($paymentId, $apiContext);
+	$execution = new \PayPal\Api\PaymentExecution();
+	$execution->setPayerId($_GET['PayerID']);
+	try {
+		$result = $payment->execute($execution, $apiContext);
+		try {
+			$payment = \PayPal\Api\Payment::get($paymentId, $apiContext);
+
+		}
+		catch (Exception $ex) {
+
+		}
+	}
+	catch (Exception $ex) {
+
+	}
+
+	
+	  foreach($datas as $key=>$data){
+        //customer id see line no 8
+        $id = $user_id;
+        // product id
+        $productId = $key;
+        $qty = $data['qty'];
+        $price = $data['price'];
+		$slot_date = $_SESSION['slot']['date'];
+		$slot_time = $_SESSION['slot']['time'];
+
+		$todaydate = date("Y-m-d");
+		$total = $qty * $price ;
+
+
+
+
+		
+
+
+		//insert wala sql
+		 	$sql="insert into ORDER_ITEM(CUSTOMER,PRODUCT,QUANTITY,ORDER_DATE,STATUS,SLOT_DATE,SLOT_TIME,PRICE,TOTAL) 
+									values('$id','$productId','$qty','$todaydate','pending','$slot_date','$slot_time',$price,$total)";
+					
+			  $result2=oci_parse($connection,$sql); 
+			 oci_execute($result2);  
+
+			 //update product stock
+
+		        $updateProduct = "update PRODUCT set STOCK = STOCK -'$qty'  where product_id = '$productId'";
+                 
+
+		        $result1=oci_parse($connection,$updateProduct);
+		        oci_execute($result1);
+					
+
+		}
+		unset($_SESSION['cart']);
+    	echo"Congrulation !! Your Order Has been placed .<a href='index.php'  data-rel='collapse' class='icon-2 info-tooltip' > Continue Shoping</a>";
+    	return ;
+
+    	return $payment;
+    	exit();
+	}
+
+$payer = new \PayPal\Api\Payer();
+$payer->setPaymentMethod("paypal");
+
+$total = 0;
+$itemList = new \PayPal\Api\ItemList();
+
+	foreach($datas as $key => $value){ 
+		$total = $total + ($value['qty'] * $value['price']);
+		$item1= new \PayPal\Api\Item();
+		$item1->setName($value['pname'])
+		->setCurrency('USD')
+		->setQuantity($value['qty'])
+		->setPrice($value['price'])
+			->setSku($value['id']);
+
+		$itemList->addItem($item1);
+	}
+
+
+$amount = new \PayPal\Api\Amount();
+$amount->setCurrency("USD")
+->setTotal($total);
+//->setDetails($details);
+
+$transaction = new \PayPal\Api\Transaction();
+$transaction->setAmount($amount)
+->setItemList($itemList)
+->setDescription("Payment description")
+
+->setInvoiceNumber(uniqid());
+$baseUrl = 'http://localhost/Webportal/front-end';
+$redirectUrls = new \PayPal\Api\RedirectUrls();
+$redirectUrls->setReturnUrl($baseUrl."/checkout.php?success=true")
+->setCancelUrl($baseUrl."/checkout.php?success=false");
+
+$payment = new \PayPal\Api\Payment();
+$payment->setIntent("sale")
+->setPayer($payer)
+->setRedirectUrls($redirectUrls)
+->setTransactions(array($transaction));
+
+try {
+	$payment->create($apiContext);
+}
+catch (\PayPal\Exception\PayPalConnectionException $ex) {
+// This will print the detailed information on the exception. 
+//REALLY HELPFUL FOR DEBUGGING
+	echo $ex->getData();
+}
+
+$approvalUrl = $payment->getApprovalLink();
+
+header("Location: ".$approvalUrl);
+
+?>
